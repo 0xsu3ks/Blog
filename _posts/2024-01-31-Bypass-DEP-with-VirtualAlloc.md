@@ -17,7 +17,7 @@ With all that out of the way, lets tackle a topic I recently took a deep dive in
 
 ## DEP Theory
 
-Before we can even begin understanding how to bypass the thing, we need to have some understand of what the thing is. DEP or Data Execution Protection or NX-Bit (No Execute Bit) Protection was created to prevent arbitrary code from being executed in an non-executable memory region. When we think back to classic Buffer Overflows, we placed our shellcode and stack and let it rip, in modern software and operating systems that is no longer the case as the stack is marked as a non executable region. 
+Before we can even begin understanding how to bypass the thing, we need to have some understanding of what the thing is. DEP or Data Execution Protection or NX-Bit (No Execute Bit) Protection was created to prevent arbitrary code from being executed in an non-executable memory region. When we think back to classic Buffer Overflows, we placed our shellcode and stack and let it rip, in modern software and operating systems that is no longer the case as the stack is marked as a non executable region. 
 
 DEP runs in four different modes:
 + OptIn
@@ -37,11 +37,11 @@ DEP provides a significant challenge for exploit developers, as it prevents the 
 
 ## Hey Harry, is this ROP Soaked in Kerosene?
 
-ROP in my opinion is considered an advanced exploitation technique. Instead of injecting and executing new code, ROP manipulates the control flow of a program by executing small snippets of existing code. This small snippets are known as **"gadgets** and they're already present in the program or it's libraries. Throughout this blog post, we will encounter an application compiled with DEP protection and from there we will identify a library suitable for finding ROP gadgets. One of the key components of this process is finding a library that is not compiled with Address Space Layout Randomization (ASLR) and another being that the address of the module does not contain **null** bytes.
+ROP in my opinion is considered an advanced exploitation technique. Instead of injecting and executing new code, ROP manipulates the control flow of a program by executing small snippets of existing code. This small snippets are known as **"gadgets"** and they're already present in the program or it's libraries. Throughout this blog post, we will encounter an application compiled with DEP protection and from there we will identify a library suitable for finding ROP gadgets. One of the key components of this process is finding a library that is not compiled with Address Space Layout Randomization (ASLR) and another being that the address of the module does not contain **null** bytes.
 
 ## Have to Start Somewhere
 
-In starting to develop a fresh exploit for a either a pre-existing buffer overflow or developing a new one that simply must bypass DEP, a few considerations should be made. One of those being, how will we make an area of memory executable on the stack or in the heap? There are many methods, Windows APIs that do this but this article will focus on one, `VirtualAlloc`.
+In starting to develop a fresh exploit for a either a pre-existing buffer overflow or developing a new one that simply must bypass DEP, a few considerations should be made. One of those being, how will we make an area of memory executable on the stack or in the heap? There are many methods and Windows APIs that do this but this article will focus on one, `VirtualAlloc`.
 
 ```c++
 LPVOID VirtualAlloc(
@@ -52,13 +52,13 @@ LPVOID VirtualAlloc(
 );
 ```
 
-`VirtualAlloc` is an interesting choice because it only takes four parameters and three of them are fairly straight forward to set. We will cover each one individually as we go on and build our exploit. The first and foremost step is to obtain the address of `VirtualAlloc` from kernel32.dll. This poses a significant problem as well. As you'll see, we will be using rop gadgets from a DLL that was not compiled with ASLR, meaning the address of the library will not change. This makes our exploit portable from different versions of the OS as the application will always load "some.dll" at base address 0x10000000. However, this is not the case for windows dlls like kernel32.dll, these are compiled with ASLR and the address will change from iteration to iteration of the application. Luckily, we have a method to deal with this.
+`VirtualAlloc` is an interesting choice because it only takes four parameters and three of them are fairly straight forward to set. We will cover each one individually as we go on and build our exploit. The first and foremost step is to obtain the address of `VirtualAlloc` from kernel32.dll. This poses a significant problem as well. As you'll see, we will be using ROP gadgets from a DLL that was not compiled with ASLR, meaning the address of the library will not change. This makes our exploit portable from different versions of the OS as the application will always load "some.dll" at base address `0x10000000`. However, this is not the case for windows DLLs like kernel32.dll, these are compiled with ASLR and the address will change from iteration to iteration of the application. Luckily, we have a method to deal with this.
 
 Let's get our application loaded and hooked into WinDbg to get a closer look at the modules presented the choices we have:
 
 <img src="/images/VA_1.png" alt=""> 
 
-As mentioned there's only one suitable option and that is `libspp.dll`. This module is loaded at a base address of `0x10000000` and does not contain null bytes as the other modules do. To extract all the rop gadgets from this module we will utilize `rp++` [https://github.com/0vercl0k/rp], the command will go something like this :`rp-win-x64.exe -f libspp.dll -r 5 > libspp_rops.txt`
+As mentioned there's only one suitable option and that is `libspp.dll`. This module is loaded at a base address of `0x10000000` and does not contain null bytes as the other modules do. To extract all the rop gadgets from this module we will utilize `rp++` -- [https://github.com/0vercl0k/rp] --, and the command will go something like this :`rp-win-x64.exe -f libspp.dll -r 5 > libspp_rops.txt`
 
 Our text file will look like this:
 ```text
@@ -88,7 +88,7 @@ At this point we know a few things:
 + The Windows API we will use to bypass DEP
 + The module will we use to find suitable gadgets
 
-Next on the list is to find the address of `VirtualAlloc` in a way that will compensates for the fact the address changes on every iteration of the application. Before we jump into that, lets go over to VSCode and start getting a skeleton of exploit down. In the interest of time, I've skipped the fuzzing for bad characters portion.
+Next on the list is to find the address of `VirtualAlloc` in a way that will compensate for the fact the address changes on every iteration of the application. Before we jump into that, lets go over to VSCode and start getting a skeleton of exploit down. In the interest of time, I've skipped the fuzzing for bad characters portion.
 
 ```python
 #!/usr/bin/python
@@ -120,15 +120,15 @@ try:
     virtualAlloc += pack("<L", (0x65656565)) # dummy flProtect
 ```
 
-Now that this is squared away, we can finally start the process of finding where `VirtualAlloc` is tucked away in this application. The key to finding this is to use the Import Address Table (IAT) of libspp.dll
+Now that this is squared away, we can finally start the process of finding where `VirtualAlloc` is tucked away in this application. The key to finding this is to use the Import Address Table (IAT) of `libspp.dll`
 
 WinDbg command: `!dh 10000000 -f`
 
 <img src="/images/VA_2.png" alt=""> 
 
-In this image we will can see that the IAT is located at `168000` from the base of `libspp`. We can then use the `dps` command to dump the address at that offset and try to resolve them to symbols.
+In this image we will can see that the IAT is located at `168000` bytes from the base of `libspp`. We can then use the `dps` command to dump the address at that offset and try to resolve them to symbols.
 
-While manual methods are always fun and a great way to learn, these things can be automated with WinDbg's `pykd` integration. Below is the output that highlights exactly what we need. Because` VirtualAlloc` is not resolved by the application, we can use a different import function from `kernel32.dll` such as `WriteFile` and then dereference it. Once we dereference it, we can an offset to this value to obtain the actual address of `VirtualAlloc`! While the base addresses of `WriteFile` and `VirtualAlloc` changes, what does not change is the offset between these two imported functions in the IAT. So in this example we can obtain the address of `VirtualAlloc` by adding a large negative to WriteFile, why the large negative value? To avoid null bytes.
+While manual methods are always fun and a great way to learn, these things can be automated easily with WinDbg's `pykd` integration. Below is the output that highlights exactly what we need. Because` VirtualAlloc` is not resolved by the application, we can use a different import function from `kernel32.dll` such as `WriteFile` and then dereference it. Once we dereference it, we can use an offset to this value to obtain the actual address of `VirtualAlloc`! While the base addresses of `WriteFile` and `VirtualAlloc` changes, what does not change is the offset between these two imported functions in the IAT. So in this example we can obtain the address of `VirtualAlloc` by adding a large negative to `WriteFile`,  and why the large negative value? To avoid null bytes.
 
 <img src="/images/VA_3.png" alt=""> 
 
@@ -141,7 +141,7 @@ As good practice I like to add this to my python script in the comments, as we'l
     #[+] 0xffffbee0 (negative)
 ```
 
-Now that we're armed with the information needed to succeed and the exact location of where `VirtualAlloc` resides, we can effectively start building our ROP chain. The goal of the ROP chain is simple, patch the arguments on the stack for the `VirtualAlloc` API and then once it's all set, make a call to `VirtualAlloc` to execute and change the memory permissions of the pre-determined section of memory on the stack from READ to EXECUTE.
+Now that we're armed with the information needed to succeed and the exact location of where `VirtualAlloc` resides, we can effectively start building our ROP chain. The goal of the ROP chain is simple, patch the arguments on the stack for the `VirtualAlloc` API and then once it's all set, make a call to `VirtualAlloc` to execute and change the memory permissions of the pre-determined section of memory on the stack from `READ` to `EXECUTE`.
 
 ## ROP Chains
 
@@ -149,7 +149,7 @@ The first step in our ROP chain is get a working copy of the `ESP` register into
 
 `0x10154112: push esp ; inc ecx ; adc eax, 0x08468B10 ; pop esi ; ret  ;`
 
-In this gadget we are pushing the contents of `ESP` to the stack and performing two other instructions that do not matter to us. The one that does matter is the `pop esi` which will take the value we pushed onto the stack from `ESP` and place it into `ESI`
+In this gadget we are pushing the contents of `ESP` to the stack and performing two other instructions that do not matter to us. This is perfectly acceptable and sometimes neccessary. With ROP gadgets you won't always find one that does exactly what you need it to do, so as long as the other "junk" instructions don't mess up the flow of the application then it is fair game. In this gadget the two that do matter are `psuh esp` and `pop esi`, which will take the value we pushed onto the stack from `ESP` and place it into `ESI`.
 
 <img src="/images/VA_4.png" alt=""> 
 
@@ -270,11 +270,11 @@ This parameter is very straightforward, simply put it's the size of the region i
 
 All we need to do here *after moving 4 places along the stack* is to `pop` this large negative value into `EAX`. Then we can use the `neg eax ; ret;` gadget to transform this value to it's correct value `0x00000001`. We then reuse our memory dereference gadget `mov [edx], eax ; ret ;` to place the correct value in the memory address `EDX` is pointing to which is `0x63636363`.
 
-<img src="/images/VA_10.png" alt=""> 
-
 <img src="/images/VA_11.png" alt=""> 
 
-<img src="/images/VA_11.png" alt=""> 
+<img src="/images/VA_12.png" alt=""> 
+
+<img src="/images/VA_13.png" alt=""> 
 
 ### Patching flAllocationType
 
