@@ -1,0 +1,51 @@
+---
+import Base from './Base.astro';
+
+interface Props {
+  title: string;
+  date: Date;
+  excerpt?: string;
+}
+
+const { title, date, excerpt } = Astro.props;
+
+const formatted = date.toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
+// estimate reading time from word count
+const rawContent = await Astro.slots.render('default');
+const wordCount = rawContent.replace(/<[^>]*>/g, '').split(/\s+/).length;
+const readTime = Math.max(1, Math.round(wordCount / 230));
+---
+
+<Base title={title} description={excerpt || title}>
+  <div class="reading-progress" id="reading-progress"></div>
+
+  <header class="post-header">
+    <a href="/" class="post-back">&larr; Back</a>
+    <h1 class="post-page-title">{title}</h1>
+    <div class="post-meta">
+      <time>{formatted}</time>
+      <span class="post-meta-divider"></span>
+      <span>{readTime} min read</span>
+    </div>
+  </header>
+
+  <article class="article-content">
+    <slot />
+  </article>
+
+  <script>
+    const bar = document.getElementById('reading-progress');
+    if (bar) {
+      window.addEventListener('scroll', () => {
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = docHeight > 0 ? (window.scrollY / docHeight) * 100 : 0;
+        bar.style.width = `${Math.min(pct, 100)}%`;
+      }, { passive: true });
+    }
+  </script>
+</Base>
