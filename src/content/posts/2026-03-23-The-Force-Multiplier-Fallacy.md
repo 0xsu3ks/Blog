@@ -1,3 +1,10 @@
+  ---
+  title: "The Force Multiplier Fallacy"
+  date: 2026-03-23
+  tags: [posts]
+  excerpt: "My Thoughts on AI in 2026"
+  ---
+
 # The Force Multiplier Fallacy: AI Isn't Replacing You, Your Lack of Foundation Is
 
 It's 4am and I just fed the newest addition to the family. As I'm holding him I think about what his life and my oldest son's life will look like in the future. Will they like breaking things like me? My first son already shows promise, he wants to know the *why* to everything. Why does this do that? How does it work? It's an exciting time as a parent to watch his mind working like that, but it's also a scary time when we consider where we are in the world today with technology and AI.
