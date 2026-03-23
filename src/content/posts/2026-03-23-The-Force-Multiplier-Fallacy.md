@@ -1,9 +1,9 @@
-  ---
-  title: "The Force Multiplier Fallacy"
-  date: 2026-03-23
-  tags: [posts]
-  excerpt: "My Thoughts on AI in 2026"
-  ---
+---
+title: "The Force Multiplier Fallacy"
+date: 2026-03-23
+tags: [posts]
+excerpt: "My Thoughts on AI in 2026"
+---
 
 # The Force Multiplier Fallacy: AI Isn't Replacing You, Your Lack of Foundation Is
 
